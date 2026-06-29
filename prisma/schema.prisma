@@ -1,0 +1,420 @@
+// schema.prisma
+// Fase 1 (Foundation): User & RBAC + Master Data (Kategori, Produk, Supplier)
+// Fase 2 (Member & Penjualan): Member, HargaKhusus, SesiKasir, Transaksi, KartuStok
+// Model lain (PO, GRN, StokOpname, EventLog, dst) akan ditambahkan pada fase
+// berikutnya sesuai roadmap PRD section 9.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ========== ENUMS ==========
+
+enum Role {
+  OWNER
+  ADMIN
+  KASIR
+  GUDANG
+}
+
+enum TipeTransaksi {
+  RITEL
+  GROSIR
+}
+
+enum StatusTransaksi {
+  DRAFT
+  PAID
+  VOID
+  EXPIRED
+}
+
+enum MetodePembayaran {
+  TUNAI
+  TRANSFER
+  QRIS
+  KARTU
+}
+
+enum StatusHargaKhusus {
+  AKTIF
+  NONAKTIF
+}
+
+enum JenisPergerakanStok {
+  PENJUALAN
+  RETUR_PENJUALAN
+  PENERIMAAN_GRN
+  RETUR_PEMBELIAN
+  PENYESUAIAN_OPNAME
+  PENYESUAIAN_MANUAL
+}
+
+enum StatusPO {
+  DRAFT
+  DIAJUKAN
+  DISETUJUI
+  SEBAGIAN_DITERIMA
+  SELESAI
+  DIBATALKAN
+}
+
+enum StatusStokOpname {
+  DRAFT
+  MENUNGGU_APPROVAL
+  SELESAI
+}
+
+enum EventType {
+  SALE_COMPLETED
+  PURCHASE_RECEIVED
+  STOCK_ADJUSTED
+  PURCHASE_PAID
+}
+
+// ========== USER & AUTH ==========
+
+model User {
+  id           String   @id @default(cuid())
+  nama         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  aktif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transaksi      Transaksi[]
+  sesiKasir      SesiKasir[]
+  kartuStokEntri KartuStok[]
+  hargaKhususLog HargaKhususLog[]
+  purchaseOrders PurchaseOrder[]
+  grn            GRN[]
+  stokOpname     StokOpname[]
+
+  @@map("users")
+}
+
+model SesiKasir {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  modalAwal     Decimal   @db.Decimal(14, 2)
+  totalKasAkhir Decimal?  @db.Decimal(14, 2)
+  dibukaPada    DateTime  @default(now())
+  ditutupPada   DateTime?
+  catatan       String?
+
+  transaksi Transaksi[]
+
+  @@map("sesi_kasir")
+}
+
+// ========== MASTER DATA ==========
+
+model Kategori {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  createdAt DateTime @default(now())
+
+  produk Produk[]
+
+  @@map("kategori")
+}
+
+model Produk {
+  id           String   @id @default(cuid())
+  sku          String   @unique
+  barcode      String?  @unique
+  nama         String
+  kategoriId   String
+  kategori     Kategori @relation(fields: [kategoriId], references: [id])
+  satuan       String
+  hpp          Decimal  @default(0) @db.Decimal(14, 2)
+  hargaRitel   Decimal  @db.Decimal(14, 2)
+  hargaGrosir  Decimal  @db.Decimal(14, 2)
+  minQtyGrosir Int      @default(1)
+  stok         Int      @default(0)
+  stokMinimum  Int      @default(0)
+  aktif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transaksiItem  TransaksiItem[]
+  hargaKhusus    HargaKhusus[]
+  kartuStok      KartuStok[]
+  poItem         POItem[]
+  grnItem        GRNItem[]
+  stokOpnameItem StokOpnameItem[]
+
+  @@map("produk")
+}
+
+model Supplier {
+  id           String   @id @default(cuid())
+  nama         String
+  kontakPerson String?
+  telepon      String?
+  alamat       String?
+  aktif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[]
+
+  @@map("supplier")
+}
+
+model Member {
+  id           String    @id @default(cuid())
+  kodeMember   String    @unique // MBR-000001
+  nama         String
+  noHp         String    @unique
+  email        String?
+  alamat       String?
+  tanggalLahir DateTime?
+  catatan      String?
+  aktif        Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  transaksi      Transaksi[]
+  hargaKhusus    HargaKhusus[]
+  hargaKhususLog HargaKhususLog[]
+
+  @@map("member")
+}
+
+// ========== HARGA KHUSUS (PER-CUSTOMER) ==========
+
+model HargaKhusus {
+  id              String            @id @default(cuid())
+  memberId        String
+  member          Member            @relation(fields: [memberId], references: [id])
+  produkId        String
+  produk          Produk            @relation(fields: [produkId], references: [id])
+  hargaKhusus     Decimal           @db.Decimal(14, 2)
+  tanggalMulai    DateTime?
+  tanggalBerakhir DateTime?
+  status          StatusHargaKhusus @default(AKTIF)
+  catatan         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@unique([memberId, produkId, status])
+  @@map("harga_khusus")
+}
+
+model HargaKhususLog {
+  id           String   @id @default(cuid())
+  memberId     String
+  member       Member   @relation(fields: [memberId], references: [id])
+  produkId     String
+  hargaLama    Decimal? @db.Decimal(14, 2)
+  hargaBaru    Decimal  @db.Decimal(14, 2)
+  diubahOlehId String
+  diubahOleh   User     @relation(fields: [diubahOlehId], references: [id])
+  createdAt    DateTime @default(now())
+
+  @@map("harga_khusus_log")
+}
+
+// ========== PENJUALAN (POS) ==========
+
+model Transaksi {
+  id               String            @id @default(cuid())
+  nomorTransaksi   String            @unique // TRX-20260628-0001
+  tipeTransaksi    TipeTransaksi     @default(RITEL)
+  memberId         String?
+  member           Member?           @relation(fields: [memberId], references: [id])
+  kasirId          String
+  kasir            User              @relation(fields: [kasirId], references: [id])
+  sesiKasirId      String
+  sesiKasir        SesiKasir         @relation(fields: [sesiKasirId], references: [id])
+  subtotal         Decimal           @db.Decimal(14, 2)
+  diskonTotal      Decimal           @default(0) @db.Decimal(14, 2)
+  total            Decimal           @db.Decimal(14, 2)
+  metodePembayaran MetodePembayaran?
+  jumlahDibayar    Decimal?          @db.Decimal(14, 2)
+  kembalian        Decimal?          @db.Decimal(14, 2)
+  status           StatusTransaksi   @default(DRAFT)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  items TransaksiItem[]
+
+  @@map("transaksi")
+}
+
+model TransaksiItem {
+  id          String    @id @default(cuid())
+  transaksiId String
+  transaksi   Transaksi @relation(fields: [transaksiId], references: [id])
+  produkId    String
+  produk      Produk    @relation(fields: [produkId], references: [id])
+  qty         Int
+  qtyRetur    Int       @default(0)
+  hargaSatuan Decimal   @db.Decimal(14, 2) // snapshot harga final saat transaksi
+  tipeHarga   String // "RITEL" | "GROSIR" | "KHUSUS"
+  diskonItem  Decimal   @default(0) @db.Decimal(14, 2)
+  subtotal    Decimal   @db.Decimal(14, 2)
+
+  @@map("transaksi_item")
+}
+
+// ========== INVENTORY (Kartu Stok minimal untuk Fase 2) ==========
+
+model KartuStok {
+  id              String              @id @default(cuid())
+  produkId        String
+  produk          Produk              @relation(fields: [produkId], references: [id])
+  jenisPergerakan JenisPergerakanStok
+  qty             Int // positif = masuk, negatif = keluar
+  stokSebelum     Int
+  stokSesudah     Int
+  referensiTipe   String // "TRANSAKSI" | "GRN" | "STOK_OPNAME" | "MANUAL"
+  referensiId     String?
+  userId          String
+  user            User                @relation(fields: [userId], references: [id])
+  catatan         String?
+  createdAt       DateTime            @default(now())
+
+  @@map("kartu_stok")
+}
+
+// ========== PEMBELIAN (PO & GRN) ==========
+
+model PurchaseOrder {
+  id           String   @id @default(cuid())
+  nomorPO      String   @unique // PO-20260628-0001
+  supplierId   String
+  supplier     Supplier @relation(fields: [supplierId], references: [id])
+  dibuatOlehId String
+  dibuatOleh   User     @relation(fields: [dibuatOlehId], references: [id])
+  totalNilai   Decimal  @db.Decimal(14, 2)
+  status       StatusPO @default(DRAFT)
+  disetujuiPada DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  items POItem[]
+  grn   GRN[]
+
+  @@map("purchase_order")
+}
+
+model POItem {
+  id          String        @id @default(cuid())
+  poId        String
+  po          PurchaseOrder @relation(fields: [poId], references: [id])
+  produkId    String
+  produk      Produk        @relation(fields: [produkId], references: [id])
+  qtyPesan    Int
+  hargaBeli   Decimal       @db.Decimal(14, 2)
+  qtyDiterima Int           @default(0) // akumulasi dari seluruh GRN terkait
+
+  @@map("po_item")
+}
+
+model GRN {
+  id             String        @id @default(cuid())
+  nomorGRN       String        @unique // GRN-20260628-0001
+  poId           String
+  po             PurchaseOrder @relation(fields: [poId], references: [id])
+  diterimaOlehId String
+  diterimaOleh   User          @relation(fields: [diterimaOlehId], references: [id])
+  catatan        String?
+  createdAt      DateTime      @default(now())
+
+  items GRNItem[]
+
+  @@map("grn")
+}
+
+model GRNItem {
+  id             String    @id @default(cuid())
+  grnId          String
+  grn            GRN       @relation(fields: [grnId], references: [id])
+  produkId       String
+  produk         Produk    @relation(fields: [produkId], references: [id])
+  qtyDiterima    Int
+  qtyDitolak     Int       @default(0)
+  hargaAktual    Decimal   @db.Decimal(14, 2)
+  nomorBatch     String?
+  tanggalExpired DateTime?
+  adaDiskrepansi Boolean   @default(false)
+
+  @@map("grn_item")
+}
+
+// ========== STOK OPNAME ==========
+
+model StokOpname {
+  id           String           @id @default(cuid())
+  nomorOpname  String           @unique // SO-20260628-0001
+  lingkup      String // "SEMUA" | nama kategori
+  status       StatusStokOpname @default(DRAFT)
+  dibuatOlehId String
+  dibuatOleh   User             @relation(fields: [dibuatOlehId], references: [id])
+  createdAt    DateTime         @default(now())
+  selesaiPada  DateTime?
+
+  items StokOpnameItem[]
+
+  @@map("stok_opname")
+}
+
+model StokOpnameItem {
+  id           String     @id @default(cuid())
+  stokOpnameId String
+  stokOpname   StokOpname @relation(fields: [stokOpnameId], references: [id])
+  produkId     String
+  produk       Produk     @relation(fields: [produkId], references: [id])
+  stokSistem   Int
+  stokFisik    Int?
+  selisih      Int?
+  alasanKode   String? // "HILANG" | "RUSAK" | "SALAH_CATAT" | "DITEMUKAN" | "LAINNYA"
+
+  @@map("stok_opname_item")
+}
+
+// ========== INTEGRASI / EVENT LOG (PRD 2.5) ==========
+
+// Append-only, independen dari skema operasional lain — modul akuntansi
+// terpisah membaca tabel ini secara asinkron tanpa menyentuh data POS.
+model EventLog {
+  id                String    @id @default(cuid())
+  eventType         EventType
+  payload           Json
+  referensiId       String
+  diprosesAkuntansi Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+
+  @@map("event_log")
+}
+
+// ========== LAPORAN (PRD 5.6.5) ==========
+
+// Agregasi harian precomputed agar dashboard tidak perlu full-scan tabel
+// Transaksi setiap kali dibuka.
+model RingkasanPenjualanHarian {
+  id              String   @id @default(cuid())
+  tanggal         DateTime @unique
+  totalRitel      Decimal  @default(0) @db.Decimal(14, 2)
+  totalGrosir     Decimal  @default(0) @db.Decimal(14, 2)
+  totalKhusus     Decimal  @default(0) @db.Decimal(14, 2)
+  totalPenjualan  Decimal  @default(0) @db.Decimal(14, 2)
+  totalModal      Decimal  @default(0) @db.Decimal(14, 2) // dasar kalkulasi margin kotor
+  totalDiskon     Decimal  @default(0) @db.Decimal(14, 2)
+  totalTransaksi  Int      @default(0)
+  totalQtyTerjual Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("ringkasan_penjualan_harian")
+}
