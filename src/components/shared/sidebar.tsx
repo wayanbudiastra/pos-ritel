@@ -17,6 +17,11 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Store,
+  BookText,
+  Network,
+  ScrollText,
+  TrendingUp,
+  Scale,
 } from "lucide-react";
 import { ROUTE_ACCESS } from "@/lib/route-access";
 import {
@@ -41,6 +46,11 @@ const ICONS: Record<string, ComponentType<{ className?: string }>> = {
   "/inventory": Warehouse,
   "/laporan/stok": Warehouse,
   "/laporan": BarChart3,
+  "/akuntansi/jurnal": ScrollText,
+  "/akuntansi/pemetaan": Network,
+  "/akuntansi/coa": BookText,
+  "/akuntansi/laba-rugi": TrendingUp,
+  "/akuntansi/neraca": Scale,
 };
 
 export function Sidebar({ userName, role }: { userName: string; role: Role }) {

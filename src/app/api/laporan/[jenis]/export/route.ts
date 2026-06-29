@@ -7,6 +7,7 @@ import {
   getLaporanStok,
   getLaporanPembelian,
 } from "@/services/laporan.service";
+import { getLabaRugi, getNeraca } from "@/services/laporan-keuangan.service";
 
 function formatRupiahNumber(value: number) {
   return Number(value.toFixed(2));
@@ -144,6 +145,68 @@ export async function GET(
         tanggal: new Date(po.createdAt).toLocaleDateString("id-ID"),
       });
     }
+  } else if (jenis === "laba-rugi") {
+    if (role !== "OWNER" && role !== "ADMIN")
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    const data = await getLabaRugi(start, end);
+
+    sheet.columns = [
+      { header: "Akun", key: "akun", width: 32 },
+      { header: "Nilai", key: "nilai", width: 18 },
+    ];
+    sheet.addRow({ akun: "PENDAPATAN" });
+    for (const item of data.pendapatan) {
+      sheet.addRow({ akun: item.nama, nilai: formatRupiahNumber(item.total) });
+    }
+    sheet.addRow({ akun: "Total Pendapatan", nilai: formatRupiahNumber(data.totalPendapatan) });
+    sheet.addRow({});
+    sheet.addRow({ akun: "HARGA POKOK PENJUALAN" });
+    for (const item of data.hpp) {
+      sheet.addRow({ akun: item.nama, nilai: formatRupiahNumber(item.total) });
+    }
+    sheet.addRow({ akun: "Total HPP", nilai: formatRupiahNumber(data.totalHpp) });
+    sheet.addRow({ akun: "Laba Kotor", nilai: formatRupiahNumber(data.labaKotor) });
+    sheet.addRow({});
+    sheet.addRow({ akun: "BEBAN OPERASIONAL" });
+    for (const item of data.beban) {
+      sheet.addRow({ akun: item.nama, nilai: formatRupiahNumber(item.total) });
+    }
+    sheet.addRow({ akun: "Total Beban Operasional", nilai: formatRupiahNumber(data.totalBeban) });
+    sheet.addRow({});
+    sheet.addRow({
+      akun: data.labaBersih >= 0 ? "LABA BERSIH" : "RUGI BERSIH",
+      nilai: formatRupiahNumber(data.labaBersih),
+    });
+  } else if (jenis === "neraca") {
+    if (role !== "OWNER" && role !== "ADMIN")
+      return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
+    const tanggal = searchParams.get("tanggal") ? new Date(searchParams.get("tanggal")!) : new Date();
+    const data = await getNeraca(tanggal);
+
+    sheet.columns = [
+      { header: "Akun", key: "akun", width: 32 },
+      { header: "Nilai", key: "nilai", width: 18 },
+    ];
+    sheet.addRow({ akun: "ASET" });
+    for (const item of data.aset) {
+      sheet.addRow({ akun: item.nama, nilai: formatRupiahNumber(item.total) });
+    }
+    sheet.addRow({ akun: "Total Aset", nilai: formatRupiahNumber(data.totalAset) });
+    sheet.addRow({});
+    sheet.addRow({ akun: "LIABILITAS" });
+    for (const item of data.liabilitas) {
+      sheet.addRow({ akun: item.nama, nilai: formatRupiahNumber(item.total) });
+    }
+    sheet.addRow({ akun: "Total Liabilitas", nilai: formatRupiahNumber(data.totalLiabilitas) });
+    sheet.addRow({});
+    sheet.addRow({ akun: "EKUITAS" });
+    for (const item of data.ekuitasAkun) {
+      sheet.addRow({ akun: item.nama, nilai: formatRupiahNumber(item.total) });
+    }
+    sheet.addRow({ akun: "Laba Ditahan (Berjalan)", nilai: formatRupiahNumber(data.labaDitahanBerjalan) });
+    sheet.addRow({ akun: "Total Ekuitas", nilai: formatRupiahNumber(data.totalEkuitas) });
+    sheet.addRow({});
+    sheet.addRow({ akun: "Total Liabilitas + Ekuitas", nilai: formatRupiahNumber(data.totalLiabilitasEkuitas) });
   } else {
     return NextResponse.json(
       { error: "Jenis laporan tidak dikenal." },

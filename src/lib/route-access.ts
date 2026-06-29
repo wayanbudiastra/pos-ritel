@@ -38,6 +38,15 @@ export const ROUTE_ACCESS: { href: string; label: string; roles: Role[] }[] = [
     roles: ["OWNER", "ADMIN", "GUDANG"],
   },
   { href: "/laporan", label: "Dashboard & Laporan", roles: ["OWNER", "ADMIN"] },
+  { href: "/akuntansi/jurnal", label: "Jurnal", roles: ["OWNER", "ADMIN"] },
+  {
+    href: "/akuntansi/pemetaan",
+    label: "Pemetaan Akun",
+    roles: ["ADMIN"],
+  },
+  { href: "/akuntansi/coa", label: "Chart of Account", roles: ["OWNER", "ADMIN"] },
+  { href: "/akuntansi/laba-rugi", label: "Laba Rugi", roles: ["OWNER", "ADMIN"] },
+  { href: "/akuntansi/neraca", label: "Neraca", roles: ["OWNER", "ADMIN"] },
 ];
 
 export function findRouteAccess(pathname: string) {

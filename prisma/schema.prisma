@@ -98,6 +98,7 @@ model User {
   purchaseOrders PurchaseOrder[]
   grn            GRN[]
   stokOpname     StokOpname[]
+  jurnalEntry    JurnalEntry[]
 
   @@map("users")
 }
@@ -417,4 +418,93 @@ model RingkasanPenjualanHarian {
   updatedAt       DateTime @updatedAt
 
   @@map("ringkasan_penjualan_harian")
+}
+
+// ========== AKUNTANSI (PRD akuntansi.md — Fase 1: Fondasi) ==========
+
+enum TipeAkun {
+  ASET
+  LIABILITAS
+  EKUITAS
+  PENDAPATAN
+  BEBAN
+  HPP
+}
+
+enum SaldoNormal {
+  DEBIT
+  KREDIT
+}
+
+enum SumberJurnal {
+  OTOMATIS
+  MANUAL
+}
+
+enum StatusJurnal {
+  POSTED
+  DIBATALKAN
+}
+
+model Akun {
+  id          String      @id @default(cuid())
+  kode        String      @unique // "1-1000"
+  nama        String
+  tipe        TipeAkun
+  saldoNormal SaldoNormal
+  indukAkunId String?
+  indukAkun   Akun?       @relation("SubAkun", fields: [indukAkunId], references: [id])
+  subAkun     Akun[]      @relation("SubAkun")
+  aktif       Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+
+  jurnalLine   JurnalLine[]
+  pemetaanAkun PemetaanAkun[]
+
+  @@map("akun")
+}
+
+// Menghubungkan "kebutuhan akun" (kunci tetap di kode, lihat PRD 5.2) ke akun
+// COA pilihan Admin, supaya logic jurnal otomatis tidak hardcode kode akun.
+model PemetaanAkun {
+  id        String   @id @default(cuid())
+  kunci     String   @unique // "KAS", "PERSEDIAAN", dst.
+  akunId    String
+  akun      Akun     @relation(fields: [akunId], references: [id])
+  updatedAt DateTime @updatedAt
+
+  @@map("pemetaan_akun")
+}
+
+model JurnalEntry {
+  id                   String        @id @default(cuid())
+  nomorJurnal          String        @unique // "JRN-20260629-0001"
+  tanggal              DateTime
+  keterangan           String
+  sumber               SumberJurnal
+  eventLogId           String?       @unique // null jika manual; unique = 1 event -> 1 jurnal
+  dibuatOlehId         String
+  dibuatOleh           User          @relation(fields: [dibuatOlehId], references: [id])
+  status               StatusJurnal  @default(POSTED)
+  jurnalPembalikDariId String?       @unique
+  jurnalPembalikDari   JurnalEntry?  @relation("Pembalik", fields: [jurnalPembalikDariId], references: [id])
+  jurnalPembalik       JurnalEntry?  @relation("Pembalik")
+  createdAt            DateTime      @default(now())
+
+  items JurnalLine[]
+
+  @@map("jurnal_entry")
+}
+
+model JurnalLine {
+  id            String      @id @default(cuid())
+  jurnalEntryId String
+  jurnalEntry   JurnalEntry @relation(fields: [jurnalEntryId], references: [id])
+  akunId        String
+  akun          Akun        @relation(fields: [akunId], references: [id])
+  debit         Decimal     @default(0) @db.Decimal(14, 2)
+  kredit        Decimal     @default(0) @db.Decimal(14, 2)
+  keterangan    String?
+
+  @@map("jurnal_line")
 }
