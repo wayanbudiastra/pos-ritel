@@ -85,7 +85,11 @@ export function ProdukDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="kategoriId">Kategori</Label>
-              <Select name="kategoriId" defaultValue={produk?.kategoriId}>
+              <Select
+                name="kategoriId"
+                items={kategoriList.map((k) => ({ value: k.id, label: k.nama }))}
+                defaultValue={produk?.kategoriId}
+              >
                 <SelectTrigger id="kategoriId">
                   <SelectValue placeholder="Pilih kategori" />
                 </SelectTrigger>

@@ -158,6 +158,7 @@ export function PoFormDialog({ supplierList }: { supplierList: Supplier[] }) {
           <div className="space-y-2">
             <Label>Supplier</Label>
             <Select
+              items={supplierList.map((s) => ({ value: s.id, label: s.nama }))}
               value={supplierId}
               onValueChange={(v) => setSupplierId(v ?? "")}
             >

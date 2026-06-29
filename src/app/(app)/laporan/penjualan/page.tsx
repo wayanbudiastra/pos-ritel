@@ -98,7 +98,14 @@ export default async function LaporanPenjualanPage({
           )}
           {params.end && <input type="hidden" name="end" value={params.end} />}
 
-          <Select name="kasirId" defaultValue={params.kasirId ?? "ALL"}>
+          <Select
+            name="kasirId"
+            items={[
+              { value: "ALL", label: "Semua Kasir" },
+              ...kasirList.map((k) => ({ value: k.id, label: k.nama })),
+            ]}
+            defaultValue={params.kasirId ?? "ALL"}
+          >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Semua Kasir" />
             </SelectTrigger>
@@ -112,7 +119,16 @@ export default async function LaporanPenjualanPage({
             </SelectContent>
           </Select>
 
-          <Select name="tipeHarga" defaultValue={params.tipeHarga ?? "ALL"}>
+          <Select
+            name="tipeHarga"
+            items={[
+              { value: "ALL", label: "Semua Tipe" },
+              { value: "RITEL", label: "Ritel" },
+              { value: "GROSIR", label: "Grosir" },
+              { value: "KHUSUS", label: "Khusus" },
+            ]}
+            defaultValue={params.tipeHarga ?? "ALL"}
+          >
             <SelectTrigger className="w-36">
               <SelectValue placeholder="Tipe Harga" />
             </SelectTrigger>
@@ -124,7 +140,14 @@ export default async function LaporanPenjualanPage({
             </SelectContent>
           </Select>
 
-          <Select name="memberId" defaultValue={params.memberId ?? "ALL"}>
+          <Select
+            name="memberId"
+            items={[
+              { value: "ALL", label: "Semua Member" },
+              ...memberList.map((m) => ({ value: m.id, label: m.nama })),
+            ]}
+            defaultValue={params.memberId ?? "ALL"}
+          >
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Semua Member" />
             </SelectTrigger>

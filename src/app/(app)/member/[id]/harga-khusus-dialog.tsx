@@ -72,6 +72,7 @@ export function HargaKhususDialog({
             <Label htmlFor="produkId">Produk</Label>
             <Select
               name="produkId"
+              items={produkList.map((p) => ({ value: p.id, label: p.nama }))}
               value={selectedProdukId}
               onValueChange={(v) => setSelectedProdukId(v ?? "")}
             >
